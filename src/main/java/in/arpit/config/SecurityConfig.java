@@ -20,8 +20,6 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import in.arpit.security.CustomUserDetailsService;
 import in.arpit.security.JwtAuthenticationFilter;
 import in.arpit.security.JwtService;
-import in.arpit.security.OAuth2AuthenticationFailureHandler;
-import in.arpit.security.OAuth2AuthenticationSuccessHandler;
 import in.arpit.security.RestSecurityHandlers;
 
 @Configuration
@@ -29,37 +27,41 @@ import in.arpit.security.RestSecurityHandlers;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    // =========================
+    // Password Encoder
+    // =========================
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
     }
 
-    /**
-     * Built from AuthenticationConfiguration.
-     */
+    // =========================
+    // Authentication Manager
+    // =========================
     @Bean
     public AuthenticationManager authenticationManager(
             AuthenticationConfiguration config) throws Exception {
+
         return config.getAuthenticationManager();
     }
 
+    // =========================
+    // Security Filter Chain
+    // =========================
     @Bean
     public SecurityFilterChain filterChain(
             HttpSecurity http,
             JwtService jwtService,
             CustomUserDetailsService userDetailsService,
             RestSecurityHandlers restHandlers,
-            OAuth2AuthenticationSuccessHandler oauthSuccess,
-            OAuth2AuthenticationFailureHandler oauthFailure,
 
-            // IMPORTANT:
-            // Explicitly tell Spring which CorsConfigurationSource to use
             @Qualifier("corsConfigurationSource")
             CorsConfigurationSource corsSource
 
     ) throws Exception {
 
         http
+
             // =========================
             // CSRF
             // =========================
@@ -68,21 +70,26 @@ public class SecurityConfig {
             // =========================
             // CORS
             // =========================
-            .cors(cors -> cors.configurationSource(corsSource))
+            .cors(cors ->
+                cors.configurationSource(corsSource)
+            )
 
             // =========================
             // Session Management
             // =========================
-            .sessionManagement(s ->
-                s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(
+                    SessionCreationPolicy.STATELESS
+                )
             )
 
             // =========================
             // Exception Handling
             // =========================
-            .exceptionHandling(e -> e
-                .authenticationEntryPoint(restHandlers)
-                .accessDeniedHandler(restHandlers)
+            .exceptionHandling(exception ->
+                exception
+                    .authenticationEntryPoint(restHandlers)
+                    .accessDeniedHandler(restHandlers)
             )
 
             // =========================
@@ -90,30 +97,51 @@ public class SecurityConfig {
             // =========================
             .authorizeHttpRequests(auth -> auth
 
-                // ---- Public ----
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                // -------------------------
+                // OPTIONS / CORS
+                // -------------------------
+                .requestMatchers(
+                    HttpMethod.OPTIONS,
+                    "/**"
+                ).permitAll()
 
-                .requestMatchers("/error").permitAll()
+                // -------------------------
+                // Error
+                // -------------------------
+                .requestMatchers(
+                    "/error"
+                ).permitAll()
 
+                // -------------------------
+                // Authentication
+                // -------------------------
                 .requestMatchers(
                     "/api/auth/register",
                     "/api/auth/login"
                 ).permitAll()
 
-                // ---- Google OAuth2 ----
+                // -------------------------
+                // OAuth2 paths
+                // Kept public for future
+                // Google OAuth integration
+                // -------------------------
                 .requestMatchers(
                     "/oauth2/**",
                     "/login/oauth2/**"
                 ).permitAll()
 
-                // ---- Static pages ----
+                // -------------------------
+                // Static pages
+                // -------------------------
                 .requestMatchers(
                     "/login.html",
                     "/map.html",
                     "/favicon.ico"
                 ).permitAll()
 
-                // ---- Legacy Driver / Owner endpoints ----
+                // -------------------------
+                // Legacy Driver / Owner
+                // -------------------------
                 .requestMatchers(
                     HttpMethod.POST,
                     "/api/drivers/register",
@@ -130,17 +158,26 @@ public class SecurityConfig {
                     HttpMethod.POST,
                     "/api/parkings",
                     "/api/parkings/add/**"
-                ).hasAnyRole("OWNER", "ADMIN")
+                ).hasAnyRole(
+                    "OWNER",
+                    "ADMIN"
+                )
 
                 .requestMatchers(
                     HttpMethod.PUT,
                     "/api/parkings/**"
-                ).hasAnyRole("OWNER", "ADMIN")
+                ).hasAnyRole(
+                    "OWNER",
+                    "ADMIN"
+                )
 
                 .requestMatchers(
                     HttpMethod.DELETE,
                     "/api/parkings/**"
-                ).hasAnyRole("OWNER", "ADMIN")
+                ).hasAnyRole(
+                    "OWNER",
+                    "ADMIN"
+                )
 
                 // =========================
                 // DRIVER / ADMIN
@@ -149,7 +186,10 @@ public class SecurityConfig {
                 .requestMatchers(
                     HttpMethod.POST,
                     "/api/bookings/book"
-                ).hasAnyRole("DRIVER", "ADMIN")
+                ).hasAnyRole(
+                    "DRIVER",
+                    "ADMIN"
+                )
 
                 // =========================
                 // ADMIN ONLY
@@ -161,21 +201,13 @@ public class SecurityConfig {
                 ).hasRole("ADMIN")
 
                 // =========================
-                // Everything else
+                // EVERYTHING ELSE
                 // =========================
                 .anyRequest().authenticated()
             )
 
             // =========================
-            // Google OAuth2 Login
-            // =========================
-            .oauth2Login(oauth -> oauth
-                .successHandler(oauthSuccess)
-                .failureHandler(oauthFailure)
-            )
-
-            // =========================
-            // JWT Filter
+            // JWT Authentication Filter
             // =========================
             .addFilterBefore(
                 new JwtAuthenticationFilter(
